@@ -34,12 +34,16 @@
 
 :- module(monotonic,
           [ (monotonic)/1,              % :Spec
+            sink/2,                     % :Goal, :OnAnswer
             dnf/2,                      % +NNF,-DNF
             generalize_head/3,
 
             op(1150, fx, monotonic)
           ]).
 :- use_module(library(prolog_code)).
+
+:- meta_predicate sink(0,0).
+
 
 /** <module> Handle negation using monotonic tabling
 
@@ -152,6 +156,18 @@ mono_conj(A, _, A).
 is_not(not(X),  X).
 is_not(\+(X),   X).
 is_not(tnot(X), X).
+
+%!  sink(:Goal, :OnAnswer)
+%
+%   Run forall(Goal, OnAnswer) for all answer   of Goal and run OnAnswer
+%   for any new answer that arrives on Goal.
+
+sink(Goal, OnAnswer) :-
+    prefix_head(Goal, sink_, Sink),
+    assert((Sink :- Goal, OnAnswer)),
+    pi_head(PI, Sink),
+    table(PI as monotonic),
+    forall(Sink, true).
 
 %!  generalize_head(+Callable, -General, -Goal) is det.
 %

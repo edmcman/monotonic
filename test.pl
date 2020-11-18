@@ -1,4 +1,10 @@
 :- use_module(monotonic).
 
-a(X,Y) :- X > Y.
-a(X,Y) :- X < Y.
+:- monotonic
+    p/1.
+
+:- dynamic (q/1, r/1) as monotonic.
+
+p(X) :-
+    q(X), \+ r(X).
+

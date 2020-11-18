@@ -1,5 +1,6 @@
 :- module(monotonic,
-          [ dnf/2                       % +NNF,-DNF
+          [ dnf/2,                      % +NNF,-DNF
+            generalize_head/3
           ]).
 :- use_module(library(prolog_code)).
 
@@ -16,6 +17,25 @@ gen_clause(Head, Body) :-
     ;   bind(1, Arity, Head, Head0, Bind),
         mkconj(Bind, Body0, Body)
     ).
+
+generalize_head(Term, General, Goal) :-
+    functor(Term, Name, Arity),
+    functor(General, Name, Arity),
+    unifiable(General, Term, Unifier),
+    pre_bind(Unifier, Goal).
+
+pre_bind([], true).
+pre_bind([X=Y|T], Goal) :-
+    var(X),
+    var(Y),
+    !,
+    X = Y,
+    pre_bind(T, Goal).
+pre_bind([G0|T], Goal) :-
+    pre_bind(T, G1),
+    mkconj(G0, G1, Goal).
+
+
 
 bind(I, Arity, GenHead, Head, Bind) :-
     I =< Arity,

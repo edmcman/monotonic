@@ -41,6 +41,8 @@
             op(1150, fx, monotonic)
           ]).
 :- use_module(library(prolog_code)).
+:- use_module(library(apply)).
+:- use_module(library(error)).
 
 :- meta_predicate sink(0,0).
 
@@ -147,10 +149,6 @@ expand_monotonic_decl(PI, Flags) -->
       'expand monotonic'(Head, Flags)
     ].
 
-user:term_expansion(In, Out) :-
-    \+ current_prolog_flag(xref, true),
-    expand_monotonic(In, Out).
-
 
 %!  mono(+Body, -PosBody, -NegBody)
 %
@@ -253,6 +251,26 @@ pre_bind([G0|T], Goal, General) :-
     pre_bind(T, G1, General),
     mkconj(G0, G1, Goal).
 
+%!  nnf(+Formula, -NNF)
+%
+%   Rewrite to Negative Normal Form, meaning negations only appear
+%   around literals.
+%
+%   @tbd: what do do with the different negation primitives?
+
+nnf(not(not(A0)), A) :-
+    !,
+    nnf(A0, A).
+nnf(not((A0,B0)), (A;B)) :-
+    !,
+    nnf(not(A0), A),
+    nnf(not(B0), B).
+nnf(not((A0;B0)), (A,B)) :-
+    !,
+    nnf(not(A0), A),
+    nnf(not(B0), B).
+nnf(A, A).
+
 %!  dnf(+NNF, -DNF)
 %
 %   Convert a formula in NNF to Disjunctive Normal Form (DNF)
@@ -298,3 +316,8 @@ prefix_head(Head0, Prefix, Head) :-
     compound_name_arguments(Head0, Name0, Args),
     atom_concat(Prefix, Name0, Name),
     compound_name_arguments(Head, Name, Args).
+
+user:term_expansion(In, Out) :-
+    \+ current_prolog_flag(xref, true),
+    expand_monotonic(In, Out).
+

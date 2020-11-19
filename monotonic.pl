@@ -78,29 +78,31 @@ monotonic(Spec) :-
 expand_monotonic((:- monotonic(Spec)),
                  Clauses) :-
     phrase(expand_monotonic_decl(Spec), Clauses).
-expand_monotonic(Head :- Body0,
-                 [ (:- table (PosPI,NegPI) as monotonic),
-                   (PosHead :- PosBody),
-                   (NegHead :- NegBody)
-                 | Connection
-                 ]) :-
+expand_monotonic(Head :- Body0, Translation) :-
     is_monotonic(Head, Flags),
     expand_goal(Body0, Body),
-    mono(Body, pos, PosBody),
-    PosBody \== Body,                   % Otherwise no negations
-    !,
-    mono(Body, neg, NegBody),
+    mono(Body, PosBody, NegBody),
     prefix_head(Head, pos_, PosHead),
     prefix_head(Head, neg_, NegHead),
     pi_head(PosPI, PosHead),
     pi_head(NegPI, NegHead),
-    connect(Head, PosHead, NegHead, Connection, Flags).
-expand_monotonic(Head :- Body,
-                 [ (:- table PI as monotonic),
-                   (Head :- Body)
-                 ]) :-
-    is_monotonic(Head, _Flags),
-    pi_head(PI, Head).
+    (   NegBody == false                % no negation
+    ->  pi_head(PI, Head),
+        Translation = [ (:- table PI as monotonic),
+                        (Head :- Body)
+                      ]
+    ;   PosBody == true                 % only negation
+    ->  Translation = [ (:- table NegPI as monotonic),
+                        (NegHead :- NegBody),
+                        (Head :- \+ NegHead)
+                      ]
+    ;   connect(Head, PosHead, NegHead, Connection, Flags),
+        Translation = [ (:- table (PosPI,NegPI) as monotonic),
+                        (PosHead :- PosBody),
+                        (NegHead :- NegBody)
+                      | Connection
+                      ]
+    ).
 
 
 is_monotonic(Head, Flags) :-
@@ -150,7 +152,7 @@ user:term_expansion(In, Out) :-
     expand_monotonic(In, Out).
 
 
-%!  mono(+Body, +PosNeg, -MonoBody)
+%!  mono(+Body, -PosBody, -NegBody)
 %
 %   Given the body goal Body which may hold negations expressed using
 %   not/1, create
@@ -167,17 +169,35 @@ user:term_expansion(In, Out) :-
 mono(A, _, A) :-
     var(A),
     !.
-mono((A;B), Pos, (AP;BP)) :-
+mono((A;B), Pos, Neg) :-
     !,
-    mono_conj(A, Pos, AP),
-    mono_conj(B, Pos, BP).
-mono(A, Pos, AP) :-
-    mono_conj(A, Pos, AP).
+    semicolon_list((A;B), DisList),
+    maplist(mono_conjunction, DisList, PosList, NegList),
+    disj_list(PosList, Pos),
+    disj_list(NegList, Neg).
+mono(Conj, Pos, Neg) :-
+    mono_conjunction(Conj, Pos, Neg).
+
+disj_list([], false).
+disj_list([H], H) :-
+    !.
+disj_list([H1,H2|T], Goal) :-
+    mkdisj(H1,H2,H),
+    disj_list([H|T], Goal).
+
+
+mono_conjunction(Conj, Pos, Neg) :-
+    mono_conj(Conj, pos, Pos),
+    (   Pos == Conj
+    ->  Neg = false
+    ;   mono_conj(Conj, neg, Neg)
+    ).
 
 mono_conj(A, _, A) :-
     var(A),
     !.
 mono_conj((A,B), Pos, Conj) :-
+    !,
     mono_conj(A, Pos, AP),
     mono_conj(B, Pos, BP),
     mkconj(AP, BP, Conj).

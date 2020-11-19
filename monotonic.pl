@@ -167,7 +167,7 @@ user:term_expansion(In, Out) :-
 mono(A, _, A) :-
     var(A),
     !.
-mono((A;B), Pos, (AP,BP)) :-
+mono((A;B), Pos, (AP;BP)) :-
     !,
     mono_conj(A, Pos, AP),
     mono_conj(B, Pos, BP).

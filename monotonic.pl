@@ -80,34 +80,70 @@ expand_monotonic((:- monotonic(Spec)),
     phrase(expand_monotonic_decl(Spec), Clauses).
 expand_monotonic(Head :- Body0,
                  [ (:- table (PosPI,NegPI) as monotonic),
-                   (Head :- PosHead, \+ NegHead),
                    (PosHead :- PosBody),
                    (NegHead :- NegBody)
+                 | Connection
                  ]) :-
-    prolog_load_context(module, M),
-    current_predicate(M:'expand monotonic'/1),
-    \+ predicate_property(M:'expand monotonic'(_), imported_from(_)),
-    M:'expand monotonic'(Head),
+    is_monotonic(Head, Flags),
     expand_goal(Body0, Body),
+    mono(Body, pos, PosBody),
+    PosBody \== Body,                   % Otherwise no negations
+    !,
+    mono(Body, neg, NegBody),
     prefix_head(Head, pos_, PosHead),
     prefix_head(Head, neg_, NegHead),
     pi_head(PosPI, PosHead),
     pi_head(NegPI, NegHead),
-    mono(Body, pos, PosBody),
-    mono(Body, neg, NegBody).
+    connect(Head, PosHead, NegHead, Connection, Flags).
+expand_monotonic(Head :- Body,
+                 [ (:- table PI as monotonic),
+                   (Head :- Body)
+                 ]) :-
+    is_monotonic(Head, _Flags),
+    pi_head(PI, Head).
+
+
+is_monotonic(Head, Flags) :-
+    prolog_load_context(module, M),
+    current_predicate(M:'expand monotonic'/2),
+    \+ predicate_property(M:'expand monotonic'(_,_), imported_from(_)),
+    M:'expand monotonic'(Head, Flags).
+
+%!  connect(+Head, +PosHead, +NegHead, -Clauses, +Flags) is det.
+%
+%   Connect the positive and negative monotonic  tables to get the final
+%   result. The simplest is to create a conjunction.
+
+connect(Head, PosHead, NegHead,
+        [ (Head :- PosHead, \+ NegHead)
+        ], _Flags).
+
+%!  expand_monotonic_decl(+Spec)//
+%
+%   Translate a :- monotonic PIs [ as Flags ] into clauses to guide the
+%   transformation of PIs.
 
 expand_monotonic_decl(Var) -->
     { var(Var),
       !,
       instantiation_error(Var)
     }.
-expand_monotonic_decl((A,B)) -->
+expand_monotonic_decl(Preds as Flags) -->
     !,
-    expand_monotonic_decl(A),
+    { comma_list(Flags, List) },
+    expand_monotonic_decl(Preds, List).
+expand_monotonic_decl(Preds) -->
+    expand_monotonic_decl(Preds, []).
+
+expand_monotonic_decl((A,B), Flags) -->
+    !,
+    expand_monotonic_decl(A, Flags),
     expand_monotonic_decl(B).
-expand_monotonic_decl(PI) -->
+expand_monotonic_decl(PI, Flags) -->
     { pi_head(PI, Head) },
-    [ 'expand monotonic'(Head) ].
+    [ (:- multifile 'expand monotonic'/2),
+      'expand monotonic'(Head, Flags)
+    ].
 
 user:term_expansion(In, Out) :-
     \+ current_prolog_flag(xref, true),

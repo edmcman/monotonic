@@ -73,7 +73,7 @@ Notes
 %   Declare  the  predicate  indicators   from    Spec   to   be  tabled
 %   monotonically by splitting the predicate body   into  a positive and
 %   negative monotonic predicate and define   a  predicate that combines
-%   the two.
+%   the two. See connect/5 on the alternative connections.
 
 monotonic(Spec) :-
     throw(error(context_error(nodirective, monotonic(Spec)), _)).
@@ -117,7 +117,15 @@ is_monotonic(Head, Flags) :-
 %!  connect(+Head, +PosHead, +NegHead, -Clauses, +Flags) is det.
 %
 %   Connect the positive and negative monotonic  tables to get the final
-%   result. The simplest is to create a conjunction.
+%   result. The simplest is to create a conjunction.  Using
+%
+%       :- monotonic Pred as facts.
+%
+%   we connect the tables  by  listening   on  the  monotonic tables and
+%   maintaining a dynamic predicate with the   current set of facts. The
+%   initial dynamic predicate has a   rule calling propagate_init/3 that
+%   fills the initial set  of  solutions   and  activates  the monotonic
+%   tables.
 
 connect(Head, PosHead, NegHead,
         [ (:- dynamic(PI)),

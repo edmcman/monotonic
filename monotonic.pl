@@ -43,6 +43,7 @@
 :- use_module(library(prolog_code)).
 :- use_module(library(apply)).
 :- use_module(library(error)).
+:- use_module(library(debug)).
 
 :- meta_predicate sink(0,0).
 
@@ -119,8 +120,46 @@ is_monotonic(Head, Flags) :-
 %   result. The simplest is to create a conjunction.
 
 connect(Head, PosHead, NegHead,
+        [ (:- dynamic(PI)),
+          (Head :- (monotonic):propagate_init(M:Head, M:PosHead, M:NegHead)),
+          (:- prolog_listen(
+                  PosPI,
+                  (monotonic):propagate_pos(M:Head, M:PosHead, M:NegHead))),
+          (:- prolog_listen(
+                  NegPI,
+                  (monotonic):propagate_neg(M:Head, M:NegHead)))
+        ], Flags) :-
+    memberchk(facts, Flags),
+    !,
+    prolog_load_context(module, M),
+    pi_head(PI, Head),
+    pi_head(PosPI, PosHead),
+    pi_head(NegPI, NegHead).
+connect(Head, PosHead, NegHead,
         [ (Head :- PosHead, \+ NegHead)
         ], _Flags).
+
+:- public
+    propagate_pos/5,
+    propagate_neg/4,
+    propagate_init/3.
+
+propagate_pos(Head, PosHead, NegHead, new_answer, PosHead) :-
+    \+ NegHead,
+    debug(monotonic(facts), 'Adding ~p', [Head]),
+    assertz(Head).
+propagate_neg(Head, NegHead, new_answer, NegHead) :-
+    forall(retract(Head),
+           debug(monotonic(facts), 'Removing ~p', [Head])).
+
+propagate_init(Head, PosHead, NegHead) :-
+    debug(monotonic(facts), 'Initializing ~p', [Head]),
+    forall(PosHead, assertz(Head)),
+    forall(NegHead, retractall(Head)),
+    (   retract((Head :- (monotonic):propagate_init(_,_,_)))
+    ->  call(Head)
+    ;   fail
+    ).
 
 %!  expand_monotonic_decl(+Spec)//
 %

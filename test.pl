@@ -24,6 +24,13 @@ dp(X) :-
     ;   s(X)
     ).
 
+:- monotonic fp/1 as facts.
+
+fp(X) :-
+    q(X), \+ r(X).
+
+
+
 %!  l(Name)
 %
 %   List link clause as well as the positive and/or negative that exist.

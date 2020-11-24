@@ -34,7 +34,7 @@
 
 :- module(monotonic,
           [ (monotonic)/1,              % :Spec
-            sink/2,                     % :Goal, :OnAnswer
+            sink/3,                     % :Goal, +Name, :OnAnswer
             dnf/2,                      % +NNF,-DNF
             generalize_head/3,
 
@@ -45,7 +45,7 @@
 :- use_module(library(error)).
 :- use_module(library(debug)).
 
-:- meta_predicate sink(0,0).
+:- meta_predicate sink(0,+,0).
 
 
 /** <module> Handle negation using monotonic tabling
@@ -62,8 +62,6 @@ Notes
     For example, if there is a leading monotonic conjunction before the
     part that holds negations we can create a seperate monotonic
     predicate for this that feeds the negated part.
-  - We could (alternatively) materialize the final relation as a
-    list of facts.  When is that a good idea?
   - How to deal with propagation triggers?  Can/should we handle
     these in batches?
 */
@@ -258,17 +256,50 @@ is_not(not(X),  X).
 is_not(\+(X),   X).
 is_not(tnot(X), X).
 
-%!  sink(:Goal, :OnAnswer)
+%!  sink(:Goal, +Name, :OnAnswer)
 %
 %   Run forall(Goal, OnAnswer) for all answer   of Goal and run OnAnswer
-%   for any new answer that arrives on Goal.
+%   for any new answer  that  arrives  on   Goal.  Ig  Goal  is does not
+%   directly refer to a monotonic  tabled   predicate,  a  new monotonic
+%   tabled predicate is created dynamically.
+%
+%   @arg Name identifies the handler. A   second  registration using the
+%   same name updates OnAnswer rather than adding a new sink.
 
-sink(Goal, OnAnswer) :-
-    prefix_head(Goal, sink_, Sink),
-    assert((Sink :- Goal, OnAnswer)),
-    pi_head(PI, Sink),
-    table(PI as monotonic),
-    forall(Sink, true).
+sink(Goal, Name, OnAnswer) :-
+    predicate_property(Goal, tabled(monotonic)),
+    !,
+    sink_tabled(Goal, Name, OnAnswer).
+sink(M:Goal, Name, OnAnswer) :-
+    variant_sha1(M:Goal, PName),
+    term_variables(Goal, Args),
+    Sink =.. [PName|Args],
+    pi_head(PI, M:Sink),
+    (   current_predicate(PI)
+    ->  true
+    ;   assert((M:Sink :- Goal)),
+        table(PI as monotonic)
+    ),
+    sink_tabled(M:Sink, Name, OnAnswer).
+
+sink_tabled(Goal, Name, OnAnswer) :-
+    forall(Goal, OnAnswer),
+    pi_head(PI, Goal),
+    impl_module(Goal, MGoal),
+    prolog_listen(PI, (monotonic):propagate_sink(MGoal,OnAnswer),
+                 [ name(Name)
+                 ]).
+impl_module(Goal, M:Plain) :-
+    predicate_property(Goal, imported_from(M)),
+    !,
+    strip_module(Goal, _, Plain).
+impl_module(Goal, Goal).
+
+:- public
+    propagate_sink/4.
+
+propagate_sink(Goal, OnAnswer, new_answer, Goal) :-
+    call(OnAnswer).
 
 %!  generalize_head(+Callable, -General, -Goal) is det.
 %

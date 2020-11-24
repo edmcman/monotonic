@@ -81,8 +81,11 @@ expand_monotonic((:- monotonic(Spec)),
     phrase(expand_monotonic_decl(Spec), Clauses).
 expand_monotonic(Head :- Body0, Translation) :-
     is_monotonic(Head, Flags),
-    expand_goal(Body0, Body),
-    mono(Body, PosBody, NegBody),
+    expand_goal(Body0, Body1),
+    dnf(Body1, Body),
+    mono(Body, PosBody0, NegBody0),
+    dnf_optimize(PosBody0, PosBody),
+    dnf_optimize(NegBody0, NegBody),
     prefix_head(Head, pos_, PosHead),
     prefix_head(Head, neg_, NegHead),
     pi_head(PosPI, PosHead),
@@ -197,8 +200,8 @@ expand_monotonic_decl(PI, Flags) -->
 
 %!  mono(+Body, -PosBody, -NegBody)
 %
-%   Given the body goal Body which may hold negations expressed using
-%   not/1, create
+%   Given the body goal Body  in  DNF   form  which  may  hold negations
+%   expressed using not/1, create
 %
 %     - If PosNeg is `pos`: MonoBody is a body goal with all negations
 %       omitted.  MonoBody represents a monotonic upper bound for the
@@ -373,6 +376,47 @@ dnf1(((B;C), A0), (P,Q)) :-
     dnf1((A0,B), P),
     dnf1((A0,C), Q).
 dnf1(DNF, DNF).
+
+%!  dnf_optimize(+DNF, -Optimized)
+%
+%   Given a goal in DNF, combine   equivalent  leading conjunctions. The
+%   general form of Optimized is `(Conjunction, DNF2)`
+
+dnf_optimize(DNF, Optimized) :-
+    semicolon_list(DNF, Conjunctions),
+    maplist(comma_list, Conjunctions, ConjLists),
+    leading_conj(ConjLists, ConjL, Conjls),
+    maplist(list_conj, Conjls, Conjs),
+    semicolon_list(Disj, Conjs),
+    list_conj(ConjL, Conj),
+    mkconj(Conj, Disj, Optimized).
+
+leading_conj([H0|LL0], Common, [Rest|LL]) :-
+    split(Common, Rest, H0),
+    length(Common, LC),
+    leading_conj2(LL0, LC, Common, LL),
+    !.
+
+split([H|T], L0, [H|L]) :-
+    split(T, L0, L).
+split([], L, L).
+
+leading_conj2([], _, _, []).
+leading_conj2([H|T], LC, Common, [Rest|LL]) :-
+    length(HCommon, LC),
+    append(HCommon, Rest, H),
+    HCommon =@= Common,
+    HCommon = Common,
+    !,
+    leading_conj2(T, LC, Common, LL).
+
+list_conj([], true).
+list_conj([H], H) :-
+    !.
+list_conj([H1,H2|T], Goal) :-
+    mkconj(H1, H2, G0),
+    list_conj([G0|T], Goal).
+
 
 %!  prefix_head(+HeadIn, +Prefix, -Head)
 %

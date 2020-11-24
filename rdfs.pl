@@ -1,3 +1,19 @@
+:- use_module(monotonic).
+:- use_module(library(semweb/rdf_prefixes)).
+:- use_module(library(semweb/rdf_portray), []).
+
+:- rdf_meta
+    rdfs(r,r,o),
+    rdf_assert(r,r,o).
+:- table rdfs/3 as monotonic.
+:- dynamic rdf/3 as monotonic.
+
+listen :-
+    sink(rdfs(S,P,O), write, format(' --> {~p, ~p, ~p}~n', [S,P,O])).
+
+rdf_assert(S,P,O) :-
+    assertz(rdf(S,P,O)).
+
 rdfs(P, rdf:type, rdf:'Property') :-                            % rdf1
     rdfs(_, P, _).
 rdfs(X, rdf:type, C) :-                                         % rdfs2
@@ -32,3 +48,6 @@ rdfs(P, rdfs:subPropertyOf, rdfs:member) :-                     % rdfs12
     rdfs(P, rdf:type, rdfs:'ContainerMembershipProperty').
 rdfs(X, rdfs:subClassOf, rdfs:'Literal') :-                     % rdfs13
     rdfs(X, rdf:type, rdfs:'Datatype').
+
+rdfs(S,P,O) :-
+    rdf(S,P,O).

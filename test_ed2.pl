@@ -3,7 +3,7 @@
 :- dynamic (d1/1, d2/1) as monotonic.
 :- monotonic t/1.
 
-t(X) :- writeln('Expensive computation occurs here'), d1(X), not(d2(X)). %, format('done ~w~n', X).
+t(X) :- format('Expensive computation occurs here ~w~n', X), d1(X), not(d2(X)). %, format('done ~w~n', X).
 
 
 test :-
